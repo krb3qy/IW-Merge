@@ -148,16 +148,18 @@
     .btn-outline-danger:hover{ background: rgba(220,38,38,0.08); border-color: rgba(220,38,38,0.55); color: #991B1B; }
     .btn-primary{
       background: var(--uva-navy); border: none; box-shadow: 0 10px 20px rgba(35,45,75,0.18);
+      color: #fff !important; min-width: 60px; white-space: nowrap; overflow: visible;
     }
-    .btn-primary:hover{ background: #1C2540; }
-    .btn-primary:focus{ box-shadow: 0 0 0 0.25rem rgba(229,114,0,0.25); }
-    .btn-primary:disabled{ opacity: 0.50; box-shadow: none; }
+    .btn-primary:hover{ background: #1C2540; color: #fff !important; }
+    .btn-primary:focus{ box-shadow: 0 0 0 0.25rem rgba(229,114,0,0.25); color: #fff !important; }
+    .btn-primary:disabled{ opacity: 0.50; box-shadow: none; color: #fff !important; }
 
     .btn-success{
       background: #16a34a; border: none; box-shadow: 0 10px 20px rgba(22,163,74,0.18);
+      color: #fff !important; min-width: 50px; white-space: nowrap;
     }
-    .btn-success:hover{ background: #15803d; }
-    .btn-success:disabled{ opacity: 0.50; box-shadow: none; }
+    .btn-success:hover{ background: #15803d; color: #fff !important; }
+    .btn-success:disabled{ opacity: 0.50; box-shadow: none; color: #fff !important; }
 
     .badge-dir{
       display: inline-flex; align-items: center; gap: 6px;
@@ -298,65 +300,52 @@
             </div>
           </div>
 
-          <!-- Right: merge + add participant panels -->
+          <!-- Right: add participant (top, visible first) + merge panels -->
           <div class="col-12 col-xl-5 merge-col">
+            <!-- Add Participant panel — top position so it's visible in narrow widgets -->
+            <div id="addParticipantPanel" class="card glass mb-3">
+              <div class="card-body">
+                <h5 class="mb-1">Add Participant</h5>
+                <div class="muted mb-2">
+                  <span id="conferenceLabel" class="fw-semibold" style="color:var(--uva-navy);"></span>
+                  <span id="conferenceId" class="muted small"></span>
+                </div>
+
+                <div class="phone-input-group mb-2">
+                  <input id="addParticipantAddr" type="text" class="form-control"
+                         placeholder="Phone number">
+                  <button id="addParticipantBtn" class="btn btn-success" disabled>
+                    Dial
+                  </button>
+                </div>
+
+                <div id="addParticipantResult"></div>
+              </div>
+            </div>
+
             <!-- Merge panel -->
             <div class="card glass mb-3">
               <div class="card-body">
                 <h5 class="mb-1">Merge to Conference</h5>
-                <div class="muted mb-3">
-                  Choose a "target" call (the conference anchor), then merge the others into it.
-                </div>
+                <div class="muted mb-2">Select 2+ calls, pick a target, then merge.</div>
 
-                <div class="mb-3">
-                  <label class="form-label muted">Target call</label>
-                  <select id="targetSelect" class="form-select">
+                <div class="mb-2">
+                  <select id="targetSelect" class="form-select form-select-sm">
                     <option value="">Select calls&hellip;</option>
                   </select>
                 </div>
 
-                <div class="mb-3">
-                  <label class="form-label muted">Selected calls</label>
+                <div class="mb-2">
                   <div id="selectedChips" class="chip-wrap"></div>
                 </div>
 
-                <div class="d-grid gap-2">
-                  <button id="mergeBtn" class="btn btn-primary btn-lg" disabled>
-                    Merge selected calls
+                <div class="d-grid">
+                  <button id="mergeBtn" class="btn btn-primary" disabled>
+                    Merge
                   </button>
                 </div>
 
-                <hr class="my-4">
-                <div id="actionResult" class="mt-3"></div>
-              </div>
-            </div>
-
-            <!-- Add Participant panel — appears after merge -->
-            <div id="addParticipantPanel" class="card glass">
-              <div class="card-body">
-                <h5 class="mb-1">Add Participant</h5>
-                <div class="muted mb-3">
-                  Dial a new participant into the active conference.
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label muted">Conference</label>
-                  <div id="conferenceLabel" class="fw-semibold" style="color:var(--uva-navy);"></div>
-                  <div id="conferenceId" class="muted small"></div>
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label muted">Phone number or SIP address</label>
-                  <div class="phone-input-group">
-                    <input id="addParticipantAddr" type="text" class="form-control"
-                           placeholder="e.g. +15551234567">
-                    <button id="addParticipantBtn" class="btn btn-success" disabled>
-                      Dial
-                    </button>
-                  </div>
-                </div>
-
-                <div id="addParticipantResult" class="mt-3"></div>
+                <div id="actionResult" class="mt-2"></div>
               </div>
             </div>
           </div>
@@ -946,9 +935,14 @@ function syncRightPanel() {
 // ================================================================
 
 function showAddParticipantPanel(conversationId, label) {
+  console.log("[IW-Merge] showAddParticipantPanel called:", { conversationId, label });
   activeConferenceId = conversationId;
   const panel = el("addParticipantPanel");
+  if (!panel) { console.error("[IW-Merge] addParticipantPanel element NOT FOUND"); return; }
   panel.classList.add("active");
+  console.log("[IW-Merge] Panel classList after add:", panel.classList.toString());
+  console.log("[IW-Merge] Panel computed display:", window.getComputedStyle(panel).display);
+  console.log("[IW-Merge] Panel offsetHeight:", panel.offsetHeight);
   el("conferenceLabel").textContent = label || "Conference";
   el("conferenceId").textContent = conversationId;
   el("addParticipantAddr").value = "";
@@ -957,6 +951,7 @@ function showAddParticipantPanel(conversationId, label) {
 }
 
 function hideAddParticipantPanel() {
+  console.log("[IW-Merge] hideAddParticipantPanel called");
   activeConferenceId = null;
   el("addParticipantPanel").classList.remove("active");
 }
@@ -1039,27 +1034,30 @@ async function addParticipant() {
 //  Also detect new conferences even if the user didn't just merge.
 // ================================================================
 function detectConference() {
-  // If we have an active conference ID, check it still exists
+  console.log("[IW-Merge] detectConference called:", {
+    activeConferenceId,
+    callCount: calls.length,
+    calls: calls.map(c => ({ id: c.id, label: c.displayLabel, isConference: c.isConference, state: c.state }))
+  });
+
   if (activeConferenceId) {
     const still = calls.find(c => c.id === activeConferenceId);
     if (still) {
-      // Update label in case it changed
+      console.log("[IW-Merge] Active conference still exists, keeping panel open");
       el("conferenceLabel").textContent = still.displayLabel || "Conference";
-      return; // panel stays open
+      return;
     }
-    // Conference ended
+    console.log("[IW-Merge] Active conference gone, hiding panel");
     hideAddParticipantPanel();
     return;
   }
 
-  // Auto-detect: if there's any active call, offer the panel.
-  // After a merge the conference is just a single conversation — no need
-  // to gate on isConference; any connected call can have participants added.
   if (calls.length >= 1) {
-    // Prefer a conference-like call, otherwise use the first active call
     const target = calls.find(c => c.isConference) || calls[0];
+    console.log("[IW-Merge] Showing add participant for:", target.id, target.displayLabel);
     showAddParticipantPanel(target.id, target.displayLabel);
   } else {
+    console.log("[IW-Merge] No calls, hiding panel");
     hideAddParticipantPanel();
   }
 }
@@ -1143,16 +1141,27 @@ async function mergeSelected() {
 
   try {
     const body = { conversationIds: others };
+    let mergeEndpoint = "";
+    let firstError = null;
+
+    // Try the conference-specific endpoint first
     try {
-      await apiFetch(`/api/v2/conversations/calls/${target}/conference`, { method: "PATCH", body });
-    } catch {
-      await apiFetch(`/api/v2/conversations/calls/${target}`, { method: "PATCH", body });
+      mergeEndpoint = `/api/v2/conversations/calls/${target}/conference`;
+      await apiFetch(mergeEndpoint, { method: "PATCH", body });
+      console.log("[IW-Merge] Conference PATCH succeeded:", mergeEndpoint);
+    } catch (e1) {
+      firstError = e1;
+      console.warn("[IW-Merge] Conference PATCH failed, trying fallback:", e1.message);
+      // Fallback to the generic calls endpoint
+      mergeEndpoint = `/api/v2/conversations/calls/${target}`;
+      await apiFetch(mergeEndpoint, { method: "PATCH", body });
+      console.log("[IW-Merge] Fallback PATCH succeeded:", mergeEndpoint);
     }
 
     el("actionResult").innerHTML = `
       <div class="alert alert-success mb-0">
         <div class="fw-semibold">Conference merge requested</div>
-        <div class="small muted">Refreshing\u2026</div>
+        <div class="small muted">Refreshing\u2026${firstError ? " (used fallback endpoint)" : ""}</div>
       </div>`;
 
     showBanner({ type: "info", title: "Merge requested", message: "Refreshing call list\u2026", autoHideMs: 2500 });
@@ -1161,8 +1170,9 @@ async function mergeSelected() {
     const targetCall = calls.find(c => c.id === target);
     showAddParticipantPanel(target, targetCall?.displayLabel || "Conference");
 
-    setTimeout(loadConversations, 1200);
+    setTimeout(loadConversations, 2000);
   } catch (e) {
+    console.error("[IW-Merge] Both merge endpoints failed:", e);
     el("actionResult").innerHTML = `
       <div class="alert alert-danger mb-0">
         <div class="fw-semibold">Merge failed</div>
