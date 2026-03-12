@@ -350,6 +350,19 @@
             </div>
           </div>
 
+          <!-- Debug log — visible in the app -->
+          <div class="col-12">
+            <div class="card glass mt-2">
+              <div class="card-body" style="padding:8px 12px;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <h6 class="mb-0" style="font-size:12px; color:var(--uva-navy);">Debug Log</h6>
+                  <button id="clearDebugBtn" class="btn btn-sm btn-outline-light" style="padding:2px 8px; font-size:11px;">Clear</button>
+                </div>
+                <div id="debugLog" style="font-family:monospace; font-size:11px; color:var(--muted); max-height:200px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </main>
@@ -445,6 +458,18 @@ let bannerTimeout = null;
 
 // Track the active conference after merge
 let activeConferenceId = null;
+
+// In-app debug logger — visible in the UI and console
+function debugLog(msg) {
+  const ts = new Date().toLocaleTimeString();
+  const line = `[${ts}] ${msg}`;
+  console.log("[IW-Merge]", msg);
+  const logEl = el("debugLog");
+  if (logEl) {
+    logEl.textContent += line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
 
 function setStatus(text) { el("status").textContent = text; }
 function setAuthHint(text) { el("authHint").textContent = text || ""; }
@@ -935,14 +960,14 @@ function syncRightPanel() {
 // ================================================================
 
 function showAddParticipantPanel(conversationId, label) {
-  console.log("[IW-Merge] showAddParticipantPanel called:", { conversationId, label });
+  debugLog("showAddParticipantPanel: id=" + conversationId + " label=" + label);
   activeConferenceId = conversationId;
   const panel = el("addParticipantPanel");
-  if (!panel) { console.error("[IW-Merge] addParticipantPanel element NOT FOUND"); return; }
+  if (!panel) { debugLog("ERROR: addParticipantPanel element NOT FOUND"); return; }
   panel.classList.add("active");
-  console.log("[IW-Merge] Panel classList after add:", panel.classList.toString());
-  console.log("[IW-Merge] Panel computed display:", window.getComputedStyle(panel).display);
-  console.log("[IW-Merge] Panel offsetHeight:", panel.offsetHeight);
+  const display = window.getComputedStyle(panel).display;
+  const height = panel.offsetHeight;
+  debugLog("Panel display=" + display + " height=" + height + "px classes=" + panel.classList.toString());
   el("conferenceLabel").textContent = label || "Conference";
   el("conferenceId").textContent = conversationId;
   el("addParticipantAddr").value = "";
@@ -951,7 +976,7 @@ function showAddParticipantPanel(conversationId, label) {
 }
 
 function hideAddParticipantPanel() {
-  console.log("[IW-Merge] hideAddParticipantPanel called");
+  debugLog("hideAddParticipantPanel called");
   activeConferenceId = null;
   el("addParticipantPanel").classList.remove("active");
 }
@@ -1034,30 +1059,29 @@ async function addParticipant() {
 //  Also detect new conferences even if the user didn't just merge.
 // ================================================================
 function detectConference() {
-  console.log("[IW-Merge] detectConference called:", {
-    activeConferenceId,
-    callCount: calls.length,
-    calls: calls.map(c => ({ id: c.id, label: c.displayLabel, isConference: c.isConference, state: c.state }))
+  debugLog("detectConference: activeConferenceId=" + activeConferenceId + " calls=" + calls.length);
+  calls.forEach(function(c) {
+    debugLog("  call: id=" + c.id.slice(0,8) + " state=" + c.state + " isConf=" + c.isConference + " label=" + c.displayLabel);
   });
 
   if (activeConferenceId) {
     const still = calls.find(c => c.id === activeConferenceId);
     if (still) {
-      console.log("[IW-Merge] Active conference still exists, keeping panel open");
+      debugLog("Active conference still exists, keeping panel");
       el("conferenceLabel").textContent = still.displayLabel || "Conference";
       return;
     }
-    console.log("[IW-Merge] Active conference gone, hiding panel");
+    debugLog("Active conference gone, hiding panel");
     hideAddParticipantPanel();
     return;
   }
 
   if (calls.length >= 1) {
     const target = calls.find(c => c.isConference) || calls[0];
-    console.log("[IW-Merge] Showing add participant for:", target.id, target.displayLabel);
+    debugLog("Auto-showing panel for: " + target.id.slice(0,8) + " " + target.displayLabel);
     showAddParticipantPanel(target.id, target.displayLabel);
   } else {
-    console.log("[IW-Merge] No calls, hiding panel");
+    debugLog("No active calls, hiding panel");
     hideAddParticipantPanel();
   }
 }
@@ -1102,8 +1126,10 @@ function installResizeWatcher() {
 async function loadConversations() {
   setStatus("Loading\u2026");
   try {
+    debugLog("loadConversations: fetching /api/v2/conversations");
     const payload = await apiFetch("/api/v2/conversations");
     calls = parseCallsFromConversations(payload);
+    debugLog("loadConversations: parsed " + calls.length + " active calls from " + (payload.entities || []).length + " entities");
 
     const valid = new Set(calls.map(c => c.id));
     selectedIds = new Set(Array.from(selectedIds).filter(id => valid.has(id)));
@@ -1148,14 +1174,14 @@ async function mergeSelected() {
     try {
       mergeEndpoint = `/api/v2/conversations/calls/${target}/conference`;
       await apiFetch(mergeEndpoint, { method: "PATCH", body });
-      console.log("[IW-Merge] Conference PATCH succeeded:", mergeEndpoint);
+      debugLog("Conference PATCH succeeded: " + mergeEndpoint);
     } catch (e1) {
       firstError = e1;
-      console.warn("[IW-Merge] Conference PATCH failed, trying fallback:", e1.message);
+      debugLog("Conference PATCH failed: " + e1.message + " — trying fallback");
       // Fallback to the generic calls endpoint
       mergeEndpoint = `/api/v2/conversations/calls/${target}`;
       await apiFetch(mergeEndpoint, { method: "PATCH", body });
-      console.log("[IW-Merge] Fallback PATCH succeeded:", mergeEndpoint);
+      debugLog("Fallback PATCH succeeded: " + mergeEndpoint);
     }
 
     el("actionResult").innerHTML = `
@@ -1172,7 +1198,7 @@ async function mergeSelected() {
 
     setTimeout(loadConversations, 2000);
   } catch (e) {
-    console.error("[IW-Merge] Both merge endpoints failed:", e);
+    debugLog("ERROR: Both merge endpoints failed: " + (e.message || e));
     el("actionResult").innerHTML = `
       <div class="alert alert-danger mb-0">
         <div class="fw-semibold">Merge failed</div>
@@ -1205,6 +1231,11 @@ async function init() {
   });
 
   el("mergeBtn").addEventListener("click", mergeSelected);
+
+  // Debug clear button
+  el("clearDebugBtn")?.addEventListener("click", () => { el("debugLog").textContent = ""; });
+
+  debugLog("init: app started, security gate passed");
 
   el("logoutBtn").addEventListener("click", () => {
     clearAuth();
