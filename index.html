@@ -376,22 +376,39 @@
 //  2. Parent origin must be https://apps.usw2.pure.cloud
 // ================================================================
 (function securityGate() {
-  // TODO: re-enable strict origin check after testing
-  // Must be in an iframe, but allow any Genesys origin for now
+  var ALLOWED_ORIGIN = "https://apps.usw2.pure.cloud";
   var blocked = true;
 
   try {
     // Check 1: must be in an iframe
     if (window.self === window.top) {
-      // Not in an iframe — block
       return;
     }
 
-    // In an iframe — allow through for now (testing)
-    blocked = false;
+    // Check 2: ancestorOrigins (Chromium API — works in Genesys desktop)
+    // This is the reliable check: gives actual parent frame origins
+    // regardless of OAuth redirects that change document.referrer
+    if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+      for (var i = 0; i < window.location.ancestorOrigins.length; i++) {
+        if (window.location.ancestorOrigins[i] === ALLOWED_ORIGIN) {
+          blocked = false;
+          break;
+        }
+      }
+    }
+
+    // Check 3: fallback to document.referrer (covers initial load before OAuth)
+    if (blocked && document.referrer) {
+      try {
+        var refOrigin = new URL(document.referrer).origin;
+        if (refOrigin === ALLOWED_ORIGIN) {
+          blocked = false;
+        }
+      } catch (e) {}
+    }
   } catch (e) {
-    // Cross-origin access errors mean we ARE in an iframe but can't
-    // touch parent — check referrer only (already handled above)
+    // Cross-origin access error means we ARE in an iframe
+    // but can't touch parent — checks above already handled
   }
 
   if (!blocked) clearGate();
@@ -515,13 +532,14 @@ async function flushLogsToGithub() {
 }
 
 function initLogToken() {
-  // Read token from query param (?log=1) as a simple toggle,
-  // or full token via ?logtoken=xxx or #logtoken=xxx
   const params = new URLSearchParams(window.location.search);
 
-  // Short form: ?log=1 uses the built-in token parts
+  // ?log=1 on the URL or persisted from before OAuth redirect
   if (params.get("log") === "1") {
-    // Token assembled at runtime from parts — never appears as a single string in source
+    sessionStorage.setItem("iw-merge-log", "1");
+  }
+
+  if (sessionStorage.getItem("iw-merge-log") === "1") {
     const p = ["github_pat_11B7CELT","Y02p1RXNZC0ji0_l9","tGjuDibzke2lS46AXX","lZSRPBAd1ZHVXsGR7T","pt9qTPGCNCCF3moFKgcwQ"];
     LOG_CONFIG.token = p.join("");
     return true;
@@ -1109,7 +1127,9 @@ async function addParticipant() {
   try {
     await apiFetch(`/api/v2/conversations/calls/${activeConferenceId}/participants`, {
       method: "POST",
-      body: { address: addr }
+      body: {
+        participants: [{ address: addr }]
+      }
     });
 
     el("addParticipantResult").innerHTML = `
