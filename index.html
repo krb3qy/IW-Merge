@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Merge Calls (Genesys Cloud)</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    /* === SECURITY GATE === */
+    #security-block{
+      display:flex; align-items:center; justify-content:center;
+      height:100vh; width:100vw;
+      background:#F7F9FC;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    #security-block .inner{
+      text-align:center; max-width:420px; padding:40px;
+      border:1px solid #E5E7EB; border-radius:16px;
+      background:#fff; box-shadow:0 10px 25px rgba(17,24,39,0.08);
+    }
+    #security-block h2{ color:#991B1B; margin-bottom:12px; }
+    #security-block p{ color:#6B7280; font-size:14px; }
+
+    /* App is hidden until security clears */
+    #app-root{ display:none; }
+
+    :root{
+      --uva-navy: #232D4B;
+      --uva-orange: #E57200;
+      --uva-sky: #EEF3F9;
+      --bg: #F7F9FC;
+      --surface: #FFFFFF;
+      --text: #111827;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --shadow-sm: 0 1px 2px rgba(17,24,39,0.06);
+      --shadow-md: 0 10px 25px rgba(17,24,39,0.08);
+      --radius: 16px;
+    }
+
+    html, body { height: 100%; }
+
+    body.app-shell{
+      background:
+        radial-gradient(1200px 600px at 15% 0%, rgba(229,114,0,0.08), transparent 60%),
+        radial-gradient(900px 600px at 95% 10%, rgba(35,45,75,0.10), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--uva-sky));
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    .topbar{
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 0;
+    }
+    .brand-dot{
+      width: 14px; height: 14px; border-radius: 999px;
+      background: linear-gradient(135deg, var(--uva-orange), var(--uva-navy));
+      box-shadow: 0 0 0 6px rgba(229,114,0,0.12);
+    }
+    .brand-title{ font-weight: 750; letter-spacing: 0.2px; color: var(--uva-navy); line-height: 1.1; }
+    .brand-sub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .glass{
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-md);
+    }
+    .muted{ color: var(--muted); }
+
+    .status-pill{
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 6px 10px; border-radius: 999px; font-size: 13px;
+      background: rgba(35,45,75,0.06); border: 1px solid rgba(35,45,75,0.14);
+      width: fit-content; color: var(--uva-navy); font-weight: 600;
+    }
+
+    .banner{
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 12px; padding: 10px 12px; border-radius: 14px;
+      border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+      background: rgba(255,255,255,0.92);
+    }
+    .banner-left{ display: flex; gap: 10px; }
+    .banner-icon{
+      width: 22px; height: 22px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 12px; flex: 0 0 auto; margin-top: 1px;
+    }
+    .banner-title{ font-weight: 750; color: var(--uva-navy); line-height: 1.2; }
+    .banner-msg{ color: var(--muted); font-size: 13px; }
+    .banner-actions{ display: flex; gap: 8px; flex: 0 0 auto; }
+    .banner.info{ border-color: rgba(35,45,75,0.18); background: rgba(35,45,75,0.04); }
+    .banner.info .banner-icon{ background: rgba(35,45,75,0.10); color: var(--uva-navy); }
+    .banner.warn{ border-color: rgba(229,114,0,0.28); background: rgba(229,114,0,0.08); }
+    .banner.warn .banner-icon{ background: rgba(229,114,0,0.18); color: #8A3E00; }
+    .banner.error{ border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.06); }
+    .banner.error .banner-icon{ background: rgba(220,38,38,0.14); color: #991B1B; }
+
+    body.calls-expanded .calls-col{ width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
+    body.calls-expanded .merge-col{ width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
+    body.narrow-space #expandCallsBtn{ display: none; }
+
+    .empty-state{
+      margin-top: 16px; padding: 18px;
+      border-radius: calc(var(--radius) - 2px);
+      border: 1px dashed rgba(35,45,75,0.25);
+      background: rgba(255,255,255,0.65);
+    }
+    .empty-title{ font-weight: 700; margin-bottom: 6px; color: var(--uva-navy); }
+
+    .chip-wrap{ display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip{
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 999px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.9);
+      font-size: 13px; color: var(--uva-navy); box-shadow: var(--shadow-sm);
+    }
+    .chip .dot{
+      width: 9px; height: 9px; border-radius: 999px;
+      background: var(--uva-orange); box-shadow: 0 0 0 4px rgba(229,114,0,0.14);
+    }
+
+    .table{ --bs-table-bg: transparent; --bs-table-color: var(--text); }
+    .table thead th{
+      color: var(--uva-navy); font-weight: 700;
+      border-bottom-color: var(--border); background: rgba(35,45,75,0.04);
+    }
+    .table tbody td{ border-top-color: var(--border); color: var(--text); }
+    .table-hover tbody tr:hover{ background: rgba(229,114,0,0.06); }
+
+    .form-select, .form-control{ border-radius: 12px; border-color: var(--border); }
+    .form-check-input{ border-color: rgba(35,45,75,0.35); }
+    .form-check-input:checked{ background-color: var(--uva-navy); border-color: var(--uva-navy); }
+
+    .btn{ border-radius: 12px; font-weight: 650; }
+    .btn-outline-light{
+      color: var(--uva-navy); border-color: rgba(35,45,75,0.28); background: rgba(255,255,255,0.75);
+    }
+    .btn-outline-light:hover{
+      background: rgba(35,45,75,0.06); border-color: rgba(35,45,75,0.40); color: var(--uva-navy);
+    }
+    .btn-outline-danger{ border-color: rgba(220,38,38,0.35); color: #B91C1C; background: rgba(255,255,255,0.75); }
+    .btn-outline-danger:hover{ background: rgba(220,38,38,0.08); border-color: rgba(220,38,38,0.55); color: #991B1B; }
+    .btn-primary{
+      background: var(--uva-navy); border: none; box-shadow: 0 10px 20px rgba(35,45,75,0.18);
+    }
+    .btn-primary:hover{ background: #1C2540; }
+    .btn-primary:focus{ box-shadow: 0 0 0 0.25rem rgba(229,114,0,0.25); }
+    .btn-primary:disabled{ opacity: 0.50; box-shadow: none; }
+
+    .btn-success{
+      background: #16a34a; border: none; box-shadow: 0 10px 20px rgba(22,163,74,0.18);
+    }
+    .btn-success:hover{ background: #15803d; }
+    .btn-success:disabled{ opacity: 0.50; box-shadow: none; }
+
+    .badge-dir{
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 12px;
+      border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+      background: #fff; color: var(--uva-navy); white-space: nowrap;
+    }
+    .badge-dir.badge-mini{ padding: 4px 8px; font-size: 12px; }
+    .badge-dir .dot{ width: 8px; height: 8px; border-radius: 999px; background: var(--uva-orange); }
+    .badge-inbound{ border-color: rgba(35,45,75,0.18); background: rgba(35,45,75,0.04); }
+    .badge-outbound{ border-color: rgba(229,114,0,0.22); background: rgba(229,114,0,0.06); }
+
+    a{ color: var(--uva-navy); text-decoration-color: rgba(35,45,75,0.35); }
+    a:hover{ color: #1C2540; text-decoration-color: rgba(229,114,0,0.65); }
+
+    .card-body{ padding: 14px; }
+    h5{ margin-bottom: 6px; }
+    .form-select.form-select-sm{ padding-top: 4px; padding-bottom: 4px; }
+    .btn.btn-sm{ padding: 6px 10px; }
+    .table > :not(caption) > * > *{ padding-top: 10px; padding-bottom: 10px; }
+
+    .call-primary, .call-secondary{
+      max-width: 360px; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; display: block;
+    }
+
+    th.col-direction, td.col-direction,
+    th.col-started, td.col-started{ white-space: nowrap; }
+
+    body.narrow-space th.col-direction, body.narrow-space td.col-direction,
+    body.narrow-space th.col-started, body.narrow-space td.col-started{ display: none; }
+    body.narrow-space .table > :not(caption) > * > *{ padding-top: 8px; padding-bottom: 8px; }
+
+    @media (max-width: 900px){
+      .card-body{ padding: 12px; }
+      .table > :not(caption) > * > *{ padding-top: 8px; padding-bottom: 8px; }
+      .btn.btn-lg{ padding: 10px 14px; font-size: 16px; }
+      .muted{ font-size: 13px; }
+    }
+
+    .app-container{ max-width: 1100px; margin: 0 auto; }
+    @media (max-width: 1200px){ .app-container{ max-width: 100%; } }
+
+    /* Add Participant panel */
+    #addParticipantPanel{ display: none; }
+    #addParticipantPanel.active{ display: block; }
+    .phone-input-group{ display: flex; gap: 8px; }
+    .phone-input-group .form-control{ flex: 1; }
+  </style>
+</head>
+
+<body class="app-shell">
+
+  <!-- ============================================================
+       SECURITY GATE — shown when page is accessed outside allowed iframe
+       ============================================================ -->
+  <div id="security-block">
+    <div class="inner">
+      <h2>Access Denied</h2>
+      <p>This application can only be loaded within Genesys Cloud.</p>
+      <p style="font-size:12px; margin-top:16px; color:#9CA3AF;">
+        If you believe this is an error, contact your administrator.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       APP — hidden until security gate clears
+       ============================================================ -->
+  <div id="app-root">
+    <header class="topbar">
+      <div class="container-fluid d-flex align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <div class="brand-dot"></div>
+          <div>
+            <div class="brand-title">Merge Calls</div>
+            <div id="envLine" class="brand-sub">Genesys Cloud</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button id="refreshBtn" class="btn btn-sm btn-outline-light">Refresh</button>
+          <button id="logoutBtn" class="btn btn-sm btn-outline-danger">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container-fluid py-3">
+      <div class="app-container">
+        <div class="row g-3">
+          <!-- Left: call list -->
+          <div class="col-12 col-xl-7 calls-col">
+            <div class="card glass h-100">
+              <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                  <div id="bannerHost" class="w-100 d-none"></div>
+                  <div>
+                    <h5 class="mb-0">Active Calls</h5>
+                    <div class="muted">Select 2+ calls to merge into a conference.</div>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <button id="expandCallsBtn" class="btn btn-sm btn-outline-light" type="button">Expand</button>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" role="switch" id="autoRefresh" checked>
+                      <label class="form-check-label muted" for="autoRefresh">Auto-refresh</label>
+                    </div>
+                    <select id="refreshInterval" class="form-select form-select-sm w-auto">
+                      <option value="3000" selected>3s</option>
+                      <option value="5000">5s</option>
+                      <option value="10000">10s</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div id="status" class="status-pill mb-3">Initializing&hellip;</div>
+
+                <div class="table-responsive">
+                  <table class="table align-middle table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th style="width:44px;"></th>
+                        <th>Call</th>
+                        <th class="col-direction" style="width:120px;">Direction</th>
+                        <th>State</th>
+                        <th class="col-started">Started</th>
+                      </tr>
+                    </thead>
+                    <tbody id="callsTbody"></tbody>
+                  </table>
+                </div>
+
+                <div id="emptyState" class="empty-state d-none">
+                  <div class="empty-title">No active calls found</div>
+                  <div class="muted">If you expected calls here, confirm the logged-in user is an active participant.</div>
+                </div>
+
+                <div id="authHint" class="mt-3 muted small"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: merge + add participant panels -->
+          <div class="col-12 col-xl-5 merge-col">
+            <!-- Merge panel -->
+            <div class="card glass mb-3">
+              <div class="card-body">
+                <h5 class="mb-1">Merge to Conference</h5>
+                <div class="muted mb-3">
+                  Choose a "target" call (the conference anchor), then merge the others into it.
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label muted">Target call</label>
+                  <select id="targetSelect" class="form-select">
+                    <option value="">Select calls&hellip;</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label muted">Selected calls</label>
+                  <div id="selectedChips" class="chip-wrap"></div>
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button id="mergeBtn" class="btn btn-primary btn-lg" disabled>
+                    Merge selected calls
+                  </button>
+                </div>
+
+                <hr class="my-4">
+                <div id="actionResult" class="mt-3"></div>
+              </div>
+            </div>
+
+            <!-- Add Participant panel — appears after merge -->
+            <div id="addParticipantPanel" class="card glass">
+              <div class="card-body">
+                <h5 class="mb-1">Add Participant</h5>
+                <div class="muted mb-3">
+                  Dial a new participant into the active conference.
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label muted">Conference</label>
+                  <div id="conferenceLabel" class="fw-semibold" style="color:var(--uva-navy);"></div>
+                  <div id="conferenceId" class="muted small"></div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label muted">Phone number or SIP address</label>
+                  <div class="phone-input-group">
+                    <input id="addParticipantAddr" type="text" class="form-control"
+                           placeholder="e.g. +15551234567">
+                    <button id="addParticipantBtn" class="btn btn-success" disabled>
+                      Dial
+                    </button>
+                  </div>
+                </div>
+
+                <div id="addParticipantResult" class="mt-3"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+// ================================================================
+//  SECURITY GATE — must pass BOTH checks to render the app
+//  1. Page must be inside an iframe (not top-level)
+//  2. Parent origin must be https://apps.usw2.pure.cloud
+// ================================================================
+(function securityGate() {
+  var ALLOWED_ORIGIN = "https://apps.usw2.pure.cloud";
+  var blocked = true;
+
+  try {
+    // Check 1: must be in an iframe
+    if (window.self === window.top) {
+      // Not in an iframe — block
+      return;
+    }
+
+    // Check 2: verify parent origin via document.referrer
+    if (document.referrer) {
+      try {
+        var refOrigin = new URL(document.referrer).origin;
+        if (refOrigin === ALLOWED_ORIGIN) {
+          blocked = false;
+        }
+      } catch (e) { /* malformed referrer */ }
+    }
+
+    // Check 3: postMessage handshake — parent must respond with correct origin
+    // This is a fallback if referrer is stripped (e.g. referrer-policy)
+    if (blocked) {
+      window.addEventListener("message", function onMsg(evt) {
+        if (evt.origin === ALLOWED_ORIGIN && evt.data === "gc-iframe-ack") {
+          blocked = false;
+          clearGate();
+          window.removeEventListener("message", onMsg);
+        }
+      });
+      // Ask parent to acknowledge
+      try { window.parent.postMessage("gc-iframe-check", ALLOWED_ORIGIN); } catch (e) {}
+      // Give the handshake 2 seconds
+      setTimeout(function() {
+        if (blocked) return; // still blocked, gate stays up
+      }, 2000);
+    }
+  } catch (e) {
+    // Cross-origin access errors mean we ARE in an iframe but can't
+    // touch parent — check referrer only (already handled above)
+  }
+
+  if (!blocked) clearGate();
+
+  function clearGate() {
+    var gate = document.getElementById("security-block");
+    var app = document.getElementById("app-root");
+    if (gate) gate.style.display = "none";
+    if (app) app.style.display = "block";
+  }
+})();
+
+// ================================================================
+//  CONFIG
+// ================================================================
+const CONFIG = {
+  clientId: "c04eb9b2-d35c-4f1c-a691-85d854e5b79e",
+  environment: "usw2.pure.cloud",
+  scope: ""
+};
+
+const STORAGE = {
+  token: "gc_token",
+  tokenExpiresAt: "gc_token_expires_at",
+  pkceVerifier: "gc_pkce_verifier",
+  oauthState: "gc_oauth_state"
+};
+
+const loginBase = () => `https://login.${CONFIG.environment}`;
+const apiBase  = () => `https://api.${CONFIG.environment}`;
+const redirectUri = () => window.location.origin + window.location.pathname;
+
+const el = (id) => document.getElementById(id);
+
+let calls = [];
+let selectedIds = new Set();
+let refreshTimer = null;
+let authRedirectInProgress = false;
+window.__layoutMode = "full";
+let bannerTimeout = null;
+
+// Track the active conference after merge
+let activeConferenceId = null;
+
+function setStatus(text) { el("status").textContent = text; }
+function setAuthHint(text) { el("authHint").textContent = text || ""; }
+
+// ================================================================
+//  Banner (non-blocking alerts)
+// ================================================================
+
+function showBanner({ type = "info", title = "", message = "", showRetry = false, autoHideMs = 0 } = {}) {
+  const host = el("bannerHost");
+  if (!host) return;
+  if (bannerTimeout) { clearTimeout(bannerTimeout); bannerTimeout = null; }
+  host.classList.remove("d-none");
+
+  const iconText = type === "error" ? "!" : (type === "warn" ? "!" : "i");
+  host.innerHTML = `
+    <div class="banner ${type}">
+      <div class="banner-left">
+        <div class="banner-icon">${iconText}</div>
+        <div>
+          <div class="banner-title">${title}</div>
+          ${message ? `<div class="banner-msg">${message}</div>` : ""}
+        </div>
+      </div>
+      <div class="banner-actions">
+        ${showRetry ? `<button id="bannerRetry" class="btn btn-sm btn-outline-light" type="button">Retry</button>` : ""}
+        <button id="bannerDismiss" class="btn btn-sm btn-outline-light" type="button">Dismiss</button>
+      </div>
+    </div>`;
+
+  const dismiss = () => { host.classList.add("d-none"); host.innerHTML = ""; };
+  const dBtn = document.getElementById("bannerDismiss");
+  if (dBtn) dBtn.addEventListener("click", dismiss);
+  const rBtn = document.getElementById("bannerRetry");
+  if (rBtn) rBtn.addEventListener("click", () => { dismiss(); loadConversations(); });
+  if (autoHideMs > 0) bannerTimeout = setTimeout(dismiss, autoHideMs);
+}
+
+function hideBanner() {
+  const host = el("bannerHost");
+  if (!host) return;
+  host.classList.add("d-none");
+  host.innerHTML = "";
+}
+
+// ================================================================
+//  Expand button
+// ================================================================
+
+function updateExpandButtonVisibility() {
+  const btn = el("expandCallsBtn");
+  if (!btn) return;
+  const isExpanded = document.body.classList.contains("calls-expanded");
+  const isNarrow = document.body.classList.contains("narrow-space");
+  const enoughCalls = calls.length >= 3;
+  if (isExpanded && (isNarrow || !enoughCalls)) {
+    document.body.classList.remove("calls-expanded");
+    btn.textContent = "Expand";
+  }
+  btn.style.display = (enoughCalls && !isNarrow) ? "" : "none";
+}
+
+// ================================================================
+//  PKCE helpers
+// ================================================================
+
+function base64UrlEncode(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function randomString(length = 64) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes.buffer);
+}
+
+async function sha256(input) {
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+}
+
+async function createPkceChallenge(verifier) {
+  return base64UrlEncode(await sha256(verifier));
+}
+
+function saveToken(tokenJson) {
+  const expiresAt = Date.now() + (Number(tokenJson.expires_in || 0) * 1000);
+  sessionStorage.setItem(STORAGE.token, tokenJson.access_token);
+  sessionStorage.setItem(STORAGE.tokenExpiresAt, String(expiresAt));
+}
+
+function clearAuth() {
+  sessionStorage.removeItem(STORAGE.token);
+  sessionStorage.removeItem(STORAGE.tokenExpiresAt);
+  sessionStorage.removeItem(STORAGE.pkceVerifier);
+  sessionStorage.removeItem(STORAGE.oauthState);
+}
+
+function getToken() {
+  const tok = sessionStorage.getItem(STORAGE.token);
+  const exp = Number(sessionStorage.getItem(STORAGE.tokenExpiresAt) || "0");
+  if (!tok) return null;
+  if (Date.now() > (exp - 30000)) return null;
+  return tok;
+}
+
+function buildAuthorizeUrl(codeChallenge, state) {
+  const u = new URL(`${loginBase()}/oauth/authorize`);
+  u.searchParams.set("response_type", "code");
+  u.searchParams.set("client_id", CONFIG.clientId);
+  u.searchParams.set("redirect_uri", redirectUri());
+  u.searchParams.set("code_challenge_method", "S256");
+  u.searchParams.set("code_challenge", codeChallenge);
+  u.searchParams.set("state", state);
+  if (CONFIG.scope) u.searchParams.set("scope", CONFIG.scope);
+  return u.toString();
+}
+
+async function startLogin() {
+  if (!CONFIG.clientId || CONFIG.clientId === "YOUR_OAUTH_CLIENT_ID") {
+    setStatus("Configuration required");
+    setAuthHint("Edit CONFIG.clientId.");
+    return;
+  }
+  const verifier = randomString(64);
+  const challenge = await createPkceChallenge(verifier);
+  const state = randomString(24);
+  sessionStorage.setItem(STORAGE.pkceVerifier, verifier);
+  sessionStorage.setItem(STORAGE.oauthState, state);
+  window.location.assign(buildAuthorizeUrl(challenge, state));
+}
+
+async function exchangeCodeForToken(code) {
+  const verifier = sessionStorage.getItem(STORAGE.pkceVerifier);
+  const expectedState = sessionStorage.getItem(STORAGE.oauthState);
+  const url = new URL(window.location.href);
+  const state = url.searchParams.get("state");
+
+  if (!state || !expectedState || state !== expectedState) {
+    throw new Error("Invalid OAuth state (possible CSRF or stale session).");
+  }
+  if (!verifier) {
+    throw new Error("Missing PKCE verifier (sessionStorage cleared?).");
+  }
+
+  const body = new URLSearchParams();
+  body.set("grant_type", "authorization_code");
+  body.set("client_id", CONFIG.clientId);
+  body.set("code", code);
+  body.set("redirect_uri", redirectUri());
+  body.set("code_verifier", verifier);
+
+  const resp = await fetch(`${loginBase()}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  if (!resp.ok) throw new Error(`Token exchange failed: ${resp.status} ${await resp.text()}`);
+
+  saveToken(await resp.json());
+
+  url.searchParams.delete("code");
+  url.searchParams.delete("state");
+  url.searchParams.delete("error");
+  window.history.replaceState({}, document.title, url.toString());
+
+  sessionStorage.removeItem(STORAGE.pkceVerifier);
+  sessionStorage.removeItem(STORAGE.oauthState);
+}
+
+async function redirectToGenesysLogin(reason = "") {
+  if (authRedirectInProgress) return;
+  authRedirectInProgress = true;
+  try { stopAutoRefresh(); } catch {}
+
+  setStatus("Re-authenticating\u2026");
+  showBanner({ type: "info", title: "Session expired", message: reason || "Redirecting to Genesys sign-in\u2026", showRetry: false });
+  await new Promise(requestAnimationFrame);
+  clearAuth();
+  setTimeout(() => { startLogin(); }, 450);
+}
+
+async function apiFetch(path, { method = "GET", body = null } = {}) {
+  const token = getToken();
+  if (!token) {
+    await redirectToGenesysLogin("Your session ended. Redirecting to Genesys sign-in\u2026");
+    const err = new Error("AUTH_REDIRECT");
+    err.isAuthRedirect = true;
+    throw err;
+  }
+
+  const resp = await fetch(`${apiBase()}${path}`, {
+    method,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {})
+    },
+    body: body ? JSON.stringify(body) : null
+  });
+
+  if (resp.status === 401) {
+    await redirectToGenesysLogin("Genesys access token expired. Redirecting to sign-in\u2026");
+    const err = new Error("AUTH_REDIRECT");
+    err.isAuthRedirect = true;
+    throw err;
+  }
+
+  if (!resp.ok) throw new Error(`${method} ${path} failed: ${resp.status} ${await resp.text()}`);
+
+  const text = await resp.text();
+  return text ? JSON.parse(text) : { ok: true };
+}
+
+// ================================================================
+//  Call parsing
+// ================================================================
+
+function isActiveCallState(state) {
+  const s = (state || "").toLowerCase();
+  return ["connected", "hold"].includes(s);
+}
+
+function stripScheme(addr) {
+  if (!addr) return "";
+  return String(addr).replace(/^tel:/i, "").replace(/^sip:/i, "");
+}
+
+function cleanAniForDisplay(raw) {
+  if (!raw) return "";
+  let s = String(raw).trim();
+  s = stripScheme(s);
+  if (s.includes("@")) s = s.split("@")[0];
+  if (s.includes(";")) s = s.split(";")[0];
+  return s.trim();
+}
+
+function normalizePhone(num) {
+  if (!num) return "";
+  const s = stripScheme(num).trim();
+  const plus = s.startsWith("+") ? "+" : "";
+  return plus + s.replace(/[^\d]/g, "");
+}
+
+function formatPhonePretty(num) {
+  const cleaned = cleanAniForDisplay(num);
+  const raw = cleaned || stripScheme(num);
+  const n = normalizePhone(cleaned || num);
+  const digits = n.replace(/^\+/, "");
+  if (digits.length === 10) return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `(${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+  return raw || num;
+}
+
+function pickCustomerNameFromAttributes(attrs) {
+  if (!attrs || typeof attrs !== "object") return "";
+  const keys = [
+    "customerName","CustomerName","customer_name",
+    "contactName","ContactName",
+    "displayName","DisplayName",
+    "name","Name"
+  ];
+  for (const k of keys) {
+    const v = attrs[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function getParticipantActiveState(participant) {
+  if (!participant) return "unknown";
+  const callsArr = Array.isArray(participant.calls) ? participant.calls : [];
+  if (callsArr.length) {
+    const active = callsArr.find(c => isActiveCallState(c.state));
+    if (active?.state) return active.state;
+    const withTime = callsArr
+      .filter(c => c.connectedTime)
+      .sort((a, b) => new Date(b.connectedTime) - new Date(a.connectedTime));
+    return withTime[0]?.state || callsArr[0]?.state || participant.state || "unknown";
+  }
+  return participant.state || "unknown";
+}
+
+function getRemotePartyInfo({ agent, customer }) {
+  const direction = (agent?.direction || customer?.direction || "").toLowerCase();
+  const agentCalls = Array.isArray(agent?.calls) ? agent.calls : [];
+  if (agentCalls.length) {
+    const active = agentCalls.find(c => isActiveCallState(c.state)) || agentCalls[0];
+    const remoteName = (active?.other?.nameRaw?.trim()) || (active?.other?.name?.trim()) || "";
+    const remoteAddr = active?.other?.addressNormalized || active?.other?.addressRaw || "";
+    if (remoteName || remoteAddr) return { direction, name: remoteName, ani: remoteAddr };
+  }
+  const customerAni = customer?.address || customer?.ani || "";
+  const customerName =
+    (typeof customer?.name === "string" ? customer.name.trim() : "") ||
+    pickCustomerNameFromAttributes(customer?.attributes) || "";
+  return { direction, name: customerName, ani: customerAni };
+}
+
+function parseCallsFromConversations(payload) {
+  const entities = payload?.entities || [];
+  const out = [];
+
+  for (const conv of entities) {
+    const convId = conv.id;
+    if (!convId) continue;
+    const participants = Array.isArray(conv.participants) ? conv.participants : [];
+    const agent = participants.find(p => (p.purpose || "").toLowerCase() === "agent") || null;
+    const customer =
+      participants.find(p => (p.purpose || "").toLowerCase() === "customer") ||
+      participants.find(p => (p.participantType || "").toLowerCase() === "external") || null;
+
+    const agentState = getParticipantActiveState(agent);
+    const state = agentState !== "unknown" ? agentState : getParticipantActiveState(customer);
+    if (!isActiveCallState(state)) continue;
+
+    const { direction, name, ani } = getRemotePartyInfo({ agent, customer });
+    const aniPretty = ani ? formatPhonePretty(ani) : "";
+    const labelParts = [];
+    if (aniPretty) labelParts.push(aniPretty);
+    if (name) labelParts.push(name);
+    const displayLabel = labelParts.join(" \u00b7 ") || "Voice call";
+    const startTime = conv.startTime || agent?.startTime || customer?.startTime || "";
+
+    const callsCount =
+      (Array.isArray(conv.calls) ? conv.calls.length : 0) ||
+      (Array.isArray(agent?.calls) ? agent.calls.length : 0) || 1;
+
+    // Detect if this conversation is a conference (multiple active participants beyond agent)
+    const activeParticipantCount = participants.filter(p => {
+      const ps = getParticipantActiveState(p);
+      return isActiveCallState(ps);
+    }).length;
+
+    out.push({
+      id: convId,
+      state,
+      startTime,
+      callsCount,
+      displayLabel,
+      direction,
+      isConference: activeParticipantCount > 2 || callsCount > 1
+    });
+  }
+  return out;
+}
+
+// ================================================================
+//  UI helpers
+// ================================================================
+
+function fmtTime(iso) {
+  if (!iso) return "\u2014";
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function abbreviateState(state) {
+  const s = String(state || "").toLowerCase();
+  if (s.startsWith("conn")) return "C";
+  if (s.startsWith("aler")) return "A";
+  if (s.startsWith("dial") || s.startsWith("cont")) return "D";
+  if (s.startsWith("hold")) return "H";
+  if (s.startsWith("park")) return "P";
+  if (s.startsWith("term")) return "T";
+  return (state && String(state).trim()) ? String(state).trim().slice(0,1).toUpperCase() : "\u2014";
+}
+
+function renderTable() {
+  const tbody = el("callsTbody");
+  tbody.innerHTML = "";
+  const empty = el("emptyState");
+  if (!calls.length) { empty.classList.remove("d-none"); return; }
+  empty.classList.add("d-none");
+
+  for (const c of calls) {
+    const tr = document.createElement("tr");
+
+    const tdCheck = document.createElement("td");
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "form-check-input";
+    chk.checked = selectedIds.has(c.id);
+    chk.addEventListener("change", () => {
+      chk.checked ? selectedIds.add(c.id) : selectedIds.delete(c.id);
+      syncRightPanel();
+    });
+    tdCheck.appendChild(chk);
+
+    const tdConv = document.createElement("td");
+    const shortId = c.id?.length > 8 ? `${c.id.slice(0, 8)}\u2026` : (c.id || "");
+    const tooltip = `${c.displayLabel}\nID: ${c.id}\nLegs: ${c.callsCount}\nState: ${c.state}${c.direction ? `\nDirection: ${c.direction}` : ""}`;
+
+    const isNarrow = window.__layoutMode === "narrow";
+    const label = c.displayLabel || "";
+    let phonePart = label;
+    let namePart = "";
+    if (label.includes(" \u00b7 ")) {
+      const parts = label.split(" \u00b7 ");
+      phonePart = parts[0] || "";
+      namePart = parts.slice(1).join(" \u00b7 ");
+    }
+
+    if (isNarrow) {
+      tdConv.innerHTML = `
+        <div class="fw-semibold" title="${tooltip.replace(/"/g, "&quot;")}">${phonePart}</div>
+        ${namePart ? `<div class="muted small" title="${tooltip.replace(/"/g, "&quot;")}">${namePart}</div>` : ""}
+        <div class="muted small" title="${tooltip.replace(/"/g, "&quot;")}">${shortId}</div>`;
+    } else {
+      tdConv.innerHTML = `
+        <div class="fw-semibold call-primary" title="${tooltip.replace(/"/g, "&quot;")}">${c.displayLabel}</div>
+        <div class="muted small call-secondary" title="${tooltip.replace(/"/g, "&quot;")}">${shortId}${c.callsCount > 1 ? ` \u00b7 ${c.callsCount} legs` : ""}${c.isConference ? " \u00b7 Conference" : ""}</div>`;
+    }
+
+    const dir = (c.direction || "").toLowerCase();
+    const dirLabel = dir === "inbound" ? "Inbound" : (dir === "outbound" ? "Outbound" : "\u2014");
+    const tdDir = document.createElement("td");
+    tdDir.className = "col-direction";
+    if (dirLabel !== "\u2014") {
+      tdDir.innerHTML = `<span class="badge-dir ${dir === "inbound" ? "badge-inbound" : "badge-outbound"}"><span class="dot"></span>${dirLabel}</span>`;
+    } else {
+      tdDir.textContent = "\u2014";
+    }
+
+    const fullState = (c.state || "\u2014");
+    const stateText = window.__layoutMode === "narrow" ? abbreviateState(fullState) : fullState;
+    const tdState = document.createElement("td");
+    tdState.title = fullState;
+    tdState.textContent = stateText;
+
+    const tdStart = document.createElement("td");
+    tdStart.className = "col-started";
+    tdStart.textContent = fmtTime(c.startTime);
+
+    tr.appendChild(tdCheck);
+    tr.appendChild(tdConv);
+    tr.appendChild(tdDir);
+    tr.appendChild(tdState);
+    tr.appendChild(tdStart);
+    tbody.appendChild(tr);
+  }
+}
+
+function syncRightPanel() {
+  const ids = Array.from(selectedIds);
+  const byId = new Map(calls.map(c => [c.id, c]));
+
+  const targetSelect = el("targetSelect");
+  const current = targetSelect.value;
+  targetSelect.innerHTML = "";
+
+  if (!ids.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Select calls\u2026";
+    targetSelect.appendChild(opt);
+  } else {
+    for (const id of ids) {
+      const call = byId.get(id);
+      const label = call?.displayLabel || id;
+      const shortId = id.length > 8 ? `${id.slice(0, 8)}\u2026` : id;
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = `${label} (${shortId})`;
+      opt.title = id;
+      targetSelect.appendChild(opt);
+    }
+  }
+  if (current && ids.includes(current)) targetSelect.value = current;
+
+  const chips = el("selectedChips");
+  chips.innerHTML = "";
+  for (const id of ids) {
+    const call = byId.get(id);
+    const label = call?.displayLabel || id;
+    const div = document.createElement("div");
+    div.className = "chip";
+    div.title = id;
+    div.innerHTML = `<span class="dot"></span><span>${label}</span>`;
+    chips.appendChild(div);
+  }
+
+  el("mergeBtn").disabled = ids.length < 2;
+}
+
+// ================================================================
+//  Add Participant panel
+// ================================================================
+
+function showAddParticipantPanel(conversationId, label) {
+  activeConferenceId = conversationId;
+  const panel = el("addParticipantPanel");
+  panel.classList.add("active");
+  el("conferenceLabel").textContent = label || "Conference";
+  el("conferenceId").textContent = conversationId;
+  el("addParticipantAddr").value = "";
+  el("addParticipantResult").innerHTML = "";
+  updateAddBtn();
+}
+
+function hideAddParticipantPanel() {
+  activeConferenceId = null;
+  el("addParticipantPanel").classList.remove("active");
+}
+
+function updateAddBtn() {
+  const addr = (el("addParticipantAddr").value || "").trim();
+  el("addParticipantBtn").disabled = !addr;
+}
+
+async function addParticipant() {
+  if (!activeConferenceId) return;
+
+  let addr = (el("addParticipantAddr").value || "").trim();
+  if (!addr) return;
+
+  // Normalize: if it looks like a plain phone number, prefix with tel:
+  const digitsOnly = addr.replace(/[^\d]/g, "");
+  if (/^[\d\s\-().+]+$/.test(addr)) {
+    // Ensure E.164-ish format
+    let normalized = digitsOnly;
+    if (normalized.length === 10) normalized = "1" + normalized;
+    if (!addr.startsWith("+")) normalized = "+" + normalized;
+    else normalized = "+" + digitsOnly;
+    addr = "tel:" + normalized;
+  }
+
+  el("addParticipantBtn").disabled = true;
+  el("addParticipantResult").innerHTML = `<div class="status-pill">Dialing\u2026</div>`;
+
+  showBanner({
+    type: "info",
+    title: "Adding participant",
+    message: `Dialing ${addr}\u2026`,
+    showRetry: false
+  });
+
+  try {
+    await apiFetch(`/api/v2/conversations/calls/${activeConferenceId}/participants`, {
+      method: "POST",
+      body: { address: addr }
+    });
+
+    el("addParticipantResult").innerHTML = `
+      <div class="alert alert-success mb-0">
+        <div class="fw-semibold">Participant added</div>
+        <div class="small muted">Dialing ${addr} into the conference.</div>
+      </div>`;
+
+    showBanner({
+      type: "info",
+      title: "Participant added",
+      message: "Refreshing call list\u2026",
+      autoHideMs: 2500
+    });
+
+    el("addParticipantAddr").value = "";
+    updateAddBtn();
+    setTimeout(loadConversations, 1200);
+  } catch (e) {
+    el("addParticipantResult").innerHTML = `
+      <div class="alert alert-danger mb-0">
+        <div class="fw-semibold">Failed to add participant</div>
+        <div class="small">${e.message || String(e)}</div>
+      </div>`;
+
+    showBanner({
+      type: "error",
+      title: "Add participant failed",
+      message: (e?.message) || String(e),
+      showRetry: false
+    });
+
+    el("addParticipantBtn").disabled = false;
+  }
+}
+
+// ================================================================
+//  Auto-detect conference on refresh
+//  If the active conference still exists, keep the panel open.
+//  Also detect new conferences even if the user didn't just merge.
+// ================================================================
+function detectConference() {
+  // If we have an active conference ID, check it still exists
+  if (activeConferenceId) {
+    const still = calls.find(c => c.id === activeConferenceId);
+    if (still) {
+      // Update label in case it changed
+      el("conferenceLabel").textContent = still.displayLabel || "Conference";
+      return; // panel stays open
+    }
+    // Conference ended
+    hideAddParticipantPanel();
+    return;
+  }
+
+  // Auto-detect: if there's exactly one conference-like call, offer the panel
+  const conferences = calls.filter(c => c.isConference);
+  if (conferences.length === 1) {
+    showAddParticipantPanel(conferences[0].id, conferences[0].displayLabel);
+  }
+}
+
+// ================================================================
+//  Auto-refresh
+// ================================================================
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  if (!el("autoRefresh").checked) return;
+  const interval = parseInt(el("refreshInterval").value, 10) || 5000;
+  refreshTimer = setInterval(loadConversations, interval);
+}
+
+function stopAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = null;
+}
+
+function applyLayoutMode(mode) {
+  window.__layoutMode = mode;
+  if (mode === "narrow") document.body.classList.add("narrow-space");
+  else document.body.classList.remove("narrow-space");
+  try { renderTable(); } catch {}
+  updateExpandButtonVisibility();
+}
+
+function installResizeWatcher() {
+  const container = document.querySelector(".app-container") || document.body;
+  const ro = new ResizeObserver((entries) => {
+    const w = entries?.[0]?.contentRect?.width || container.clientWidth || window.innerWidth;
+    applyLayoutMode(w < 520 ? "narrow" : "full");
+  });
+  ro.observe(container);
+}
+
+// ================================================================
+//  API actions
+// ================================================================
+
+async function loadConversations() {
+  setStatus("Loading\u2026");
+  try {
+    const payload = await apiFetch("/api/v2/conversations");
+    calls = parseCallsFromConversations(payload);
+
+    const valid = new Set(calls.map(c => c.id));
+    selectedIds = new Set(Array.from(selectedIds).filter(id => valid.has(id)));
+
+    renderTable();
+    syncRightPanel();
+    updateExpandButtonVisibility();
+    detectConference();
+
+    hideBanner();
+    setStatus("Ready");
+  } catch (e) {
+    if (authRedirectInProgress || e?.isAuthRedirect) return;
+    console.error(e);
+    showBanner({
+      type: "warn",
+      title: "Couldn't refresh calls",
+      message: (e?.message) || String(e),
+      showRetry: true,
+      autoHideMs: 10000
+    });
+    setStatus("Refresh failed");
+    setAuthHint("");
+  }
+}
+
+async function mergeSelected() {
+  const ids = Array.from(selectedIds);
+  const target = el("targetSelect").value || ids[0];
+  const others = ids.filter(x => x !== target);
+
+  el("mergeBtn").disabled = true;
+  showBanner({ type: "info", title: "Merging calls", message: "Requesting conference merge\u2026", showRetry: false });
+  el("actionResult").innerHTML = `<div class="status-pill">Merging\u2026</div>`;
+
+  try {
+    const body = { conversationIds: others };
+    try {
+      await apiFetch(`/api/v2/conversations/calls/${target}/conference`, { method: "PATCH", body });
+    } catch {
+      await apiFetch(`/api/v2/conversations/calls/${target}`, { method: "PATCH", body });
+    }
+
+    el("actionResult").innerHTML = `
+      <div class="alert alert-success mb-0">
+        <div class="fw-semibold">Conference merge requested</div>
+        <div class="small muted">Refreshing\u2026</div>
+      </div>`;
+
+    showBanner({ type: "info", title: "Merge requested", message: "Refreshing call list\u2026", autoHideMs: 2500 });
+
+    // The target conversation becomes the conference — show add participant panel
+    const targetCall = calls.find(c => c.id === target);
+    showAddParticipantPanel(target, targetCall?.displayLabel || "Conference");
+
+    setTimeout(loadConversations, 1200);
+  } catch (e) {
+    el("actionResult").innerHTML = `
+      <div class="alert alert-danger mb-0">
+        <div class="fw-semibold">Merge failed</div>
+        <div class="small">${e.message || String(e)}</div>
+      </div>`;
+
+    showBanner({ type: "error", title: "Merge failed", message: (e?.message) || String(e), showRetry: false });
+    el("mergeBtn").disabled = false;
+  }
+}
+
+// ================================================================
+//  App init
+// ================================================================
+
+async function init() {
+  // If security gate blocked us, don't bother initializing
+  if (document.getElementById("app-root").style.display !== "block") return;
+
+  installResizeWatcher();
+  el("envLine").textContent = `Genesys Cloud \u00b7 ${CONFIG.environment}`;
+
+  el("refreshBtn").addEventListener("click", loadConversations);
+
+  el("expandCallsBtn")?.addEventListener("click", () => {
+    const expanded = document.body.classList.toggle("calls-expanded");
+    const btn = el("expandCallsBtn");
+    if (btn) btn.textContent = expanded ? "Collapse" : "Expand";
+    updateExpandButtonVisibility();
+  });
+
+  el("mergeBtn").addEventListener("click", mergeSelected);
+
+  el("logoutBtn").addEventListener("click", () => {
+    clearAuth();
+    setStatus("Logged out");
+    setAuthHint("Reload (or click Refresh) to sign in again.");
+  });
+
+  el("autoRefresh").addEventListener("change", startAutoRefresh);
+  el("refreshInterval").addEventListener("change", startAutoRefresh);
+
+  // Add Participant event listeners
+  el("addParticipantAddr").addEventListener("input", updateAddBtn);
+  el("addParticipantAddr").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !el("addParticipantBtn").disabled) addParticipant();
+  });
+  el("addParticipantBtn").addEventListener("click", addParticipant);
+
+  const url = new URL(window.location.href);
+  const oauthError = url.searchParams.get("error");
+  const code = url.searchParams.get("code");
+
+  try {
+    if (oauthError) throw new Error(`OAuth error: ${oauthError}`);
+
+    if (code) {
+      setStatus("Completing sign-in\u2026");
+      await exchangeCodeForToken(code);
+    }
+
+    if (!getToken()) {
+      setStatus("Redirecting to sign-in\u2026");
+      setAuthHint(`Register this redirect URI in Genesys: ${redirectUri()}`);
+      await startLogin();
+      return;
+    }
+
+    await loadConversations();
+    startAutoRefresh();
+    updateExpandButtonVisibility();
+  } catch (e) {
+    if (authRedirectInProgress || e?.isAuthRedirect) return;
+    console.error(e);
+    setStatus("Authentication required");
+    setAuthHint(e.message || String(e));
+  }
+}
+
+window.addEventListener("load", init);
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
