@@ -208,6 +208,53 @@
     #addParticipantPanel.active{ display: block; }
     .phone-input-group{ display: flex; gap: 8px; }
     .phone-input-group .form-control{ flex: 1; }
+
+    /* Pop-out / Pop-in */
+    .btn-popout{
+      color: var(--uva-navy); border-color: rgba(35,45,75,0.28); background: rgba(255,255,255,0.75);
+    }
+    .btn-popout:hover{
+      background: rgba(35,45,75,0.06); border-color: rgba(35,45,75,0.40); color: var(--uva-navy);
+    }
+    #popoutPlaceholder{
+      display: none; text-align: center; padding: 60px 24px;
+    }
+    #popoutPlaceholder.active{
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 70vh;
+    }
+    #popoutPlaceholder h3{ color: var(--uva-navy); margin-bottom: 8px; }
+    #popoutPlaceholder p{ color: var(--muted); margin-bottom: 20px; }
+
+    body.popout-mode .topbar{ position: static; }
+    body.popout-mode .app-container{ max-width: 700px; }
+
+    /* Queue Assign section */
+    #queuePanel .queue-call-list{
+      max-height: 260px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: rgba(255,255,255,0.65);
+    }
+    #queuePanel .queue-call-item{
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    #queuePanel .queue-call-item:last-child{ border-bottom: none; }
+    #queuePanel .queue-call-item:hover{ background: rgba(229,114,0,0.06); }
+    #queuePanel .queue-call-info{ flex: 1; min-width: 0; }
+    #queuePanel .queue-call-primary{ font-weight: 600; color: var(--uva-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #queuePanel .queue-call-secondary{ color: var(--muted); font-size: 12px; }
+    #queuePanel .queue-empty{
+      padding: 18px; text-align: center; color: var(--muted); font-size: 13px;
+    }
+    .btn-assign-merge{
+      background: linear-gradient(135deg, var(--uva-navy), #3a4a6b); border: none;
+      box-shadow: 0 10px 20px rgba(35,45,75,0.18);
+      color: #fff !important; font-weight: 700;
+    }
+    .btn-assign-merge:hover{ background: linear-gradient(135deg, #1C2540, #2d3a57); color: #fff !important; }
+    .btn-assign-merge:disabled{ opacity: 0.50; box-shadow: none; color: #fff !important; }
   </style>
 </head>
 
@@ -240,13 +287,23 @@
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <button id="popoutBtn" class="btn btn-sm btn-popout" title="Pop out to standalone window">Pop Out</button>
           <button id="refreshBtn" class="btn btn-sm btn-outline-light">Refresh</button>
           <button id="logoutBtn" class="btn btn-sm btn-outline-danger">Logout</button>
         </div>
       </div>
     </header>
 
-    <main class="container-fluid py-3">
+    <!-- Popout placeholder — shown in iframe when popped out -->
+    <div id="popoutPlaceholder">
+      <div class="card glass" style="padding:40px; max-width:380px;">
+        <h3>Running in Popup</h3>
+        <p>The Merge Calls widget is open in a separate window.</p>
+        <button id="popinFromPlaceholder" class="btn btn-primary">Bring Back Here</button>
+      </div>
+    </div>
+
+    <main id="mainContent" class="container-fluid py-3">
       <div class="app-container">
         <div class="row g-3">
           <!-- Left: call list -->
@@ -300,26 +357,31 @@
             </div>
           </div>
 
-          <!-- Right: add participant (top, visible first) + merge panels -->
+          <!-- Right column: Queue Assign → Merge → Add Participant -->
           <div class="col-12 col-xl-5 merge-col">
-            <!-- Add Participant panel — top position so it's visible in narrow widgets -->
-            <div id="addParticipantPanel" class="card glass mb-3">
+
+            <!-- Queue Assign panel (NEW) -->
+            <div id="queuePanel" class="card glass mb-3">
               <div class="card-body">
-                <h5 class="mb-1">Add Participant</h5>
-                <div class="muted mb-2">
-                  <span id="conferenceLabel" class="fw-semibold" style="color:var(--uva-navy);"></span>
-                  <span id="conferenceId" class="muted small"></span>
+                <h5 class="mb-1">Queue Calls</h5>
+                <div class="muted mb-2">Pick a queue, select waiting calls, then assign &amp; merge.</div>
+
+                <div class="mb-2">
+                  <select id="queueSelect" class="form-select form-select-sm">
+                    <option value="">Select a queue&hellip;</option>
+                  </select>
                 </div>
 
-                <div class="phone-input-group mb-2">
-                  <input id="addParticipantAddr" type="text" class="form-control"
-                         placeholder="Phone number">
-                  <button id="addParticipantBtn" class="btn btn-success" disabled>
-                    Dial
+                <div id="queueCallList" class="queue-call-list mb-2" style="display:none;"></div>
+                <div id="queueLoading" class="muted small mb-2" style="display:none;">Loading waiting calls&hellip;</div>
+
+                <div class="d-grid">
+                  <button id="assignMergeBtn" class="btn btn-assign-merge" disabled>
+                    Assign &amp; Merge Selected
                   </button>
                 </div>
 
-                <div id="addParticipantResult"></div>
+                <div id="assignMergeResult" class="mt-2"></div>
               </div>
             </div>
 
@@ -348,8 +410,29 @@
                 <div id="actionResult" class="mt-2"></div>
               </div>
             </div>
-          </div>
 
+            <!-- Add Participant panel (moved below Merge) -->
+            <div id="addParticipantPanel" class="card glass mb-3">
+              <div class="card-body">
+                <h5 class="mb-1">Add Participant</h5>
+                <div class="muted mb-2">
+                  <span id="conferenceLabel" class="fw-semibold" style="color:var(--uva-navy);"></span>
+                  <span id="conferenceId" class="muted small"></span>
+                </div>
+
+                <div class="phone-input-group mb-2">
+                  <input id="addParticipantAddr" type="text" class="form-control"
+                         placeholder="Phone number">
+                  <button id="addParticipantBtn" class="btn btn-success" disabled>
+                    Dial
+                  </button>
+                </div>
+
+                <div id="addParticipantResult"></div>
+              </div>
+            </div>
+
+          </div>
 
         </div>
       </div>
@@ -367,6 +450,14 @@
   var blocked = true;
 
   try {
+    // Allow popout mode — opened by the widget itself via window.open
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "popout") {
+      blocked = false;
+      clearGate();
+      return;
+    }
+
     // Check 1: must be in an iframe
     if (window.self === window.top) {
       return;
@@ -1162,6 +1253,430 @@ async function mergeSelected() {
 }
 
 // ================================================================
+//  Pop-out / Pop-in (single-instance enforcement)
+// ================================================================
+
+const POPOUT_KEY = "merger_widget_popout_active";
+const POPOUT_CHANNEL_NAME = "merger_widget_popout";
+let popoutWindow = null;
+let popoutPollTimer = null;
+let broadcastChannel = null;
+
+function isPopoutMode() {
+  return new URLSearchParams(window.location.search).get("mode") === "popout";
+}
+
+function initBroadcastChannel() {
+  try {
+    broadcastChannel = new BroadcastChannel(POPOUT_CHANNEL_NAME);
+    broadcastChannel.onmessage = (e) => {
+      if (e.data === "popout-opened" && !isPopoutMode()) {
+        showPopoutPlaceholder();
+      } else if (e.data === "popout-closed" && !isPopoutMode()) {
+        hidePopoutPlaceholder();
+      } else if (e.data === "popin-requested" && isPopoutMode()) {
+        window.close();
+      }
+    };
+  } catch (err) {
+    console.warn("BroadcastChannel not available, falling back to localStorage", err);
+  }
+}
+
+function showPopoutPlaceholder() {
+  const main = el("mainContent");
+  const placeholder = el("popoutPlaceholder");
+  if (main) main.style.display = "none";
+  if (placeholder) placeholder.classList.add("active");
+  stopAutoRefresh();
+}
+
+function hidePopoutPlaceholder() {
+  const main = el("mainContent");
+  const placeholder = el("popoutPlaceholder");
+  if (main) main.style.display = "";
+  if (placeholder) placeholder.classList.remove("active");
+  localStorage.removeItem(POPOUT_KEY);
+  loadConversations();
+  startAutoRefresh();
+}
+
+function openPopout() {
+  if (popoutWindow && !popoutWindow.closed) {
+    popoutWindow.focus();
+    return;
+  }
+
+  // Transfer auth token to localStorage so popup can access it
+  const tok = sessionStorage.getItem(STORAGE.token);
+  const exp = sessionStorage.getItem(STORAGE.tokenExpiresAt);
+  if (tok) localStorage.setItem("gc_popout_token", tok);
+  if (exp) localStorage.setItem("gc_popout_token_expires", exp);
+
+  const popUrl = new URL(window.location.href);
+  popUrl.searchParams.set("mode", "popout");
+  // Remove OAuth params if present
+  popUrl.searchParams.delete("code");
+  popUrl.searchParams.delete("state");
+
+  popoutWindow = window.open(
+    popUrl.toString(),
+    "merger_widget_popup",
+    "width=750,height=850,menubar=no,toolbar=no,status=no,resizable=yes,scrollbars=yes"
+  );
+
+  if (!popoutWindow) {
+    showBanner({ type: "warn", title: "Popup blocked", message: "Allow popups for this site to use pop-out mode.", autoHideMs: 5000 });
+    return;
+  }
+
+  localStorage.setItem(POPOUT_KEY, "true");
+  if (broadcastChannel) broadcastChannel.postMessage("popout-opened");
+  showPopoutPlaceholder();
+
+  // Poll for popup close
+  popoutPollTimer = setInterval(() => {
+    if (popoutWindow && popoutWindow.closed) {
+      clearInterval(popoutPollTimer);
+      popoutPollTimer = null;
+      popoutWindow = null;
+      localStorage.removeItem(POPOUT_KEY);
+      if (broadcastChannel) broadcastChannel.postMessage("popout-closed");
+      hidePopoutPlaceholder();
+    }
+  }, 500);
+}
+
+function closePopout() {
+  localStorage.removeItem(POPOUT_KEY);
+  if (broadcastChannel) broadcastChannel.postMessage("popout-closed");
+  window.close();
+}
+
+function setupPopoutMode() {
+  document.body.classList.add("popout-mode");
+
+  // Import auth token from localStorage (written by parent iframe)
+  const popToken = localStorage.getItem("gc_popout_token");
+  const popExp = localStorage.getItem("gc_popout_token_expires");
+  if (popToken && !sessionStorage.getItem(STORAGE.token)) {
+    sessionStorage.setItem(STORAGE.token, popToken);
+    if (popExp) sessionStorage.setItem(STORAGE.tokenExpiresAt, popExp);
+  }
+
+  const btn = el("popoutBtn");
+  if (btn) {
+    btn.textContent = "Pop In";
+    btn.title = "Return to iframe widget";
+    btn.removeEventListener("click", openPopout);
+    btn.addEventListener("click", () => {
+      if (broadcastChannel) broadcastChannel.postMessage("popout-closed");
+      localStorage.removeItem(POPOUT_KEY);
+      window.close();
+    });
+  }
+
+  // Notify iframe we're alive
+  if (broadcastChannel) broadcastChannel.postMessage("popout-opened");
+
+  // On unload, notify iframe
+  window.addEventListener("beforeunload", () => {
+    localStorage.removeItem(POPOUT_KEY);
+    if (broadcastChannel) broadcastChannel.postMessage("popout-closed");
+  });
+}
+
+// ================================================================
+//  Queue Assign & Merge
+// ================================================================
+
+let queueList = [];
+let queueWaitingCalls = [];
+let selectedQueueCallIds = new Set();
+let currentUserId = null;
+
+async function fetchCurrentUser() {
+  if (currentUserId) return currentUserId;
+  try {
+    const me = await apiFetch("/api/v2/users/me");
+    currentUserId = me.id;
+    return currentUserId;
+  } catch (e) {
+    if (e?.isAuthRedirect) throw e;
+    console.error("Failed to fetch current user", e);
+    return null;
+  }
+}
+
+async function loadQueues() {
+  try {
+    let allQueues = [];
+    let pageNumber = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const data = await apiFetch(`/api/v2/routing/queues/me?pageSize=${pageSize}&pageNumber=${pageNumber}&joined=true`);
+      const entities = data?.entities || [];
+      allQueues = allQueues.concat(entities);
+      hasMore = entities.length === pageSize;
+      pageNumber++;
+    }
+
+    queueList = allQueues.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    renderQueueDropdown();
+  } catch (e) {
+    if (e?.isAuthRedirect) return;
+    console.error("Failed to load queues", e);
+  }
+}
+
+function renderQueueDropdown() {
+  const sel = el("queueSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select a queue\u2026</option>';
+
+  for (const q of queueList) {
+    const opt = document.createElement("option");
+    opt.value = q.id;
+    opt.textContent = q.name || q.id;
+    sel.appendChild(opt);
+  }
+
+  if (current && queueList.some(q => q.id === current)) sel.value = current;
+}
+
+async function loadQueueWaitingCalls(queueId) {
+  if (!queueId) {
+    queueWaitingCalls = [];
+    selectedQueueCallIds.clear();
+    renderQueueCallList();
+    return;
+  }
+
+  el("queueLoading").style.display = "";
+  el("queueCallList").style.display = "none";
+
+  try {
+    const body = {
+      filter: {
+        type: "and",
+        predicates: [
+          { type: "dimension", dimension: "queueId", operator: "matches", value: queueId }
+        ]
+      },
+      metrics: ["oWaiting"],
+      detailMetrics: ["oWaiting"]
+    };
+
+    const data = await apiFetch("/api/v2/analytics/queues/observations/query", {
+      method: "POST",
+      body
+    });
+
+    // Extract individual waiting observations
+    const results = data?.results || [];
+    const waiting = [];
+
+    for (const result of results) {
+      const dataItems = result?.data || [];
+      for (const d of dataItems) {
+        if (d.metric === "oWaiting" && Array.isArray(d.observations)) {
+          for (const obs of d.observations) {
+            if (obs.conversationId) {
+              waiting.push({
+                conversationId: obs.conversationId,
+                ani: obs.ani || "",
+                dnis: obs.dnis || "",
+                participantName: obs.participantName || "",
+                direction: obs.direction || "",
+                waitingSince: obs.observationDate || "",
+                sessionId: obs.sessionId || ""
+              });
+            }
+          }
+        }
+      }
+    }
+
+    queueWaitingCalls = waiting;
+    // Prune selections that are no longer in the list
+    const validIds = new Set(waiting.map(w => w.conversationId));
+    selectedQueueCallIds = new Set([...selectedQueueCallIds].filter(id => validIds.has(id)));
+
+    renderQueueCallList();
+  } catch (e) {
+    if (e?.isAuthRedirect) return;
+    console.error("Failed to load queue waiting calls", e);
+    queueWaitingCalls = [];
+    renderQueueCallList();
+    showBanner({ type: "warn", title: "Queue load failed", message: e?.message || String(e), autoHideMs: 5000 });
+  } finally {
+    el("queueLoading").style.display = "none";
+  }
+}
+
+function renderQueueCallList() {
+  const container = el("queueCallList");
+  const btn = el("assignMergeBtn");
+
+  if (!queueWaitingCalls.length) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    if (el("queueSelect").value) {
+      container.style.display = "";
+      container.innerHTML = '<div class="queue-empty">No calls waiting in this queue</div>';
+    }
+    btn.disabled = true;
+    return;
+  }
+
+  container.style.display = "";
+  container.innerHTML = "";
+
+  for (const call of queueWaitingCalls) {
+    const item = document.createElement("div");
+    item.className = "queue-call-item";
+
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "form-check-input";
+    chk.checked = selectedQueueCallIds.has(call.conversationId);
+    chk.addEventListener("change", () => {
+      if (chk.checked) selectedQueueCallIds.add(call.conversationId);
+      else selectedQueueCallIds.delete(call.conversationId);
+      updateAssignMergeBtn();
+    });
+
+    const info = document.createElement("div");
+    info.className = "queue-call-info";
+
+    const aniDisplay = call.ani ? formatPhonePretty(call.ani) : "";
+    const primary = call.participantName || aniDisplay || "Unknown Caller";
+    const secondary = [];
+    if (call.participantName && aniDisplay) secondary.push(aniDisplay);
+    if (call.waitingSince) {
+      const elapsed = Math.floor((Date.now() - new Date(call.waitingSince).getTime()) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      secondary.push(`Waiting ${mins}m ${secs}s`);
+    }
+    const shortId = call.conversationId.length > 8 ? call.conversationId.slice(0, 8) + "\u2026" : call.conversationId;
+    secondary.push(shortId);
+
+    info.innerHTML = `
+      <div class="queue-call-primary" title="${call.conversationId}">${primary}</div>
+      <div class="queue-call-secondary">${secondary.join(" \u00b7 ")}</div>`;
+
+    const dirBadge = document.createElement("span");
+    const dir = (call.direction || "").toLowerCase();
+    if (dir === "inbound" || dir === "outbound") {
+      dirBadge.className = `badge-dir badge-mini ${dir === "inbound" ? "badge-inbound" : "badge-outbound"}`;
+      dirBadge.innerHTML = `<span class="dot"></span>${dir === "inbound" ? "In" : "Out"}`;
+    }
+
+    item.appendChild(chk);
+    item.appendChild(info);
+    if (dirBadge.className) item.appendChild(dirBadge);
+    container.appendChild(item);
+  }
+
+  updateAssignMergeBtn();
+}
+
+function updateAssignMergeBtn() {
+  el("assignMergeBtn").disabled = selectedQueueCallIds.size === 0;
+}
+
+async function assignAndMerge() {
+  const ids = Array.from(selectedQueueCallIds);
+  if (!ids.length) return;
+
+  const btn = el("assignMergeBtn");
+  btn.disabled = true;
+  el("assignMergeResult").innerHTML = '<div class="status-pill">Assigning calls\u2026</div>';
+  showBanner({ type: "info", title: "Assigning calls", message: `Assigning ${ids.length} call(s) to you\u2026` });
+
+  try {
+    const userId = await fetchCurrentUser();
+    if (!userId) throw new Error("Could not determine current user ID");
+
+    // Step 1: Assign all selected calls to the current agent
+    const assignResults = [];
+    for (const convId of ids) {
+      try {
+        await apiFetch(`/api/v2/conversations/${convId}/assign`, {
+          method: "POST",
+          body: { userId: userId }
+        });
+        assignResults.push({ id: convId, ok: true });
+      } catch (e) {
+        assignResults.push({ id: convId, ok: false, error: e.message || String(e) });
+      }
+    }
+
+    const assigned = assignResults.filter(r => r.ok);
+    const failed = assignResults.filter(r => !r.ok);
+
+    if (!assigned.length) {
+      throw new Error("All assignments failed: " + failed.map(f => f.error).join("; "));
+    }
+
+    el("assignMergeResult").innerHTML = `<div class="status-pill">Assigned ${assigned.length} call(s). Waiting for delivery\u2026</div>`;
+
+    // Step 2: Wait briefly for the calls to be delivered to the agent
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Step 3: Reload conversations to pick up the newly assigned calls
+    await loadConversations();
+
+    // Step 4: If we have 2+ active calls now, select the assigned ones and merge
+    const assignedIds = new Set(assigned.map(r => r.id));
+    const nowActive = calls.filter(c => assignedIds.has(c.id));
+
+    if (nowActive.length > 0 && calls.length >= 2) {
+      // Auto-select newly assigned calls + existing calls for merge
+      selectedIds = new Set(calls.map(c => c.id));
+      syncRightPanel();
+
+      el("assignMergeResult").innerHTML = `<div class="status-pill">Merging ${calls.length} calls\u2026</div>`;
+      showBanner({ type: "info", title: "Merging calls", message: "Auto-merging assigned calls\u2026" });
+
+      await mergeSelected();
+
+      el("assignMergeResult").innerHTML = `
+        <div class="alert alert-success mb-0">
+          <div class="fw-semibold">Assign &amp; Merge complete</div>
+          <div class="small muted">${assigned.length} call(s) assigned and merged.${failed.length ? ` ${failed.length} assignment(s) failed.` : ""}</div>
+        </div>`;
+    } else {
+      el("assignMergeResult").innerHTML = `
+        <div class="alert alert-success mb-0">
+          <div class="fw-semibold">${assigned.length} call(s) assigned</div>
+          <div class="small muted">Calls assigned to you. Select calls in the Active Calls table to merge.${failed.length ? ` ${failed.length} assignment(s) failed.` : ""}</div>
+        </div>`;
+    }
+
+    showBanner({ type: "info", title: "Done", message: "Assign & merge complete.", autoHideMs: 3000 });
+    selectedQueueCallIds.clear();
+
+    // Refresh queue call list
+    const queueId = el("queueSelect").value;
+    if (queueId) setTimeout(() => loadQueueWaitingCalls(queueId), 2000);
+
+  } catch (e) {
+    if (e?.isAuthRedirect) return;
+    el("assignMergeResult").innerHTML = `
+      <div class="alert alert-danger mb-0">
+        <div class="fw-semibold">Assign &amp; Merge failed</div>
+        <div class="small">${e.message || String(e)}</div>
+      </div>`;
+    showBanner({ type: "error", title: "Assign & Merge failed", message: e?.message || String(e) });
+    btn.disabled = false;
+  }
+}
+
+// ================================================================
 //  App init
 // ================================================================
 
@@ -1169,10 +1684,40 @@ async function init() {
   // If security gate blocked us, don't bother initializing
   if (document.getElementById("app-root").style.display !== "block") return;
 
+  // Initialize broadcast channel for pop-out sync
+  initBroadcastChannel();
+
+  // Check if we're in popout mode
+  if (isPopoutMode()) {
+    setupPopoutMode();
+  }
+
+  // Check if another popout is already running (iframe detecting existing popup)
+  if (!isPopoutMode() && localStorage.getItem(POPOUT_KEY) === "true") {
+    showPopoutPlaceholder();
+  }
+
   installResizeWatcher();
   el("envLine").textContent = `Genesys Cloud \u00b7 ${CONFIG.environment}`;
 
   el("refreshBtn").addEventListener("click", loadConversations);
+
+  // Pop-out button
+  const popoutBtn = el("popoutBtn");
+  if (popoutBtn && !isPopoutMode()) {
+    popoutBtn.addEventListener("click", openPopout);
+  }
+
+  // Placeholder "bring back" button
+  const popinBtn = el("popinFromPlaceholder");
+  if (popinBtn) {
+    popinBtn.addEventListener("click", () => {
+      if (broadcastChannel) broadcastChannel.postMessage("popin-requested");
+      // Also force close via poll if broadcast doesn't work
+      if (popoutWindow && !popoutWindow.closed) popoutWindow.close();
+      setTimeout(hidePopoutPlaceholder, 600);
+    });
+  }
 
   el("expandCallsBtn")?.addEventListener("click", () => {
     const expanded = document.body.classList.toggle("calls-expanded");
@@ -1199,6 +1744,14 @@ async function init() {
   });
   el("addParticipantBtn").addEventListener("click", addParticipant);
 
+  // Queue Assign & Merge event listeners
+  el("queueSelect").addEventListener("change", () => {
+    const queueId = el("queueSelect").value;
+    selectedQueueCallIds.clear();
+    loadQueueWaitingCalls(queueId);
+  });
+  el("assignMergeBtn").addEventListener("click", assignAndMerge);
+
   const url = new URL(window.location.href);
   const oauthError = url.searchParams.get("error");
   const code = url.searchParams.get("code");
@@ -1221,6 +1774,10 @@ async function init() {
     await loadConversations();
     startAutoRefresh();
     updateExpandButtonVisibility();
+
+    // Load queues and current user in parallel (non-blocking)
+    loadQueues();
+    fetchCurrentUser();
   } catch (e) {
     if (authRedirectInProgress || e?.isAuthRedirect) return;
     console.error(e);
