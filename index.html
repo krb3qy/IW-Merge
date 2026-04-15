@@ -1625,7 +1625,22 @@ function openPopout() {
   );
 
   if (!popoutWindow) {
-    showBanner({ type: "warn", title: "Popup blocked", message: "Allow popups for this site.", autoHideMs: 5000 });
+    // Fallback: synthesized anchor-target-blank click — survives iframe popup
+    // blocks that kill scripted window.open() (notably Edge in GC iframe).
+    // Tradeoff: opens as a full tab, not a sized window, and we lose the
+    // window handle so close-detection relies on BroadcastChannel only.
+    const a = document.createElement("a");
+    a.href = popUrl.toString();
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    localStorage.setItem(POPOUT_KEY, "true");
+    if (broadcastChannel) broadcastChannel.postMessage("popout-opened");
+    showPopoutPlaceholder();
     return;
   }
 
